@@ -9,6 +9,7 @@ import com.example.MovieBooking.entity.type.SeatStatus;
 import com.example.MovieBooking.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +31,10 @@ public class ShowService {
     private final SeatRepository seatRepository;
 
     private final ShowSeatRepository showSeatRepository;
+
+    private final KafkaTemplate<String, String> kafkaTemplate;
+
+    private final BookingRepository bookingRepository;
 
     private final ModelMapper modelMapper;
 
@@ -187,6 +192,15 @@ public class ShowService {
         // 4. Save the updated Show entity
         Show savedShow = showRepository.save(show);
 
+        // --- PUBLISH KAFKA EVENT ---
+        // Create a message to send. Using JSON as a string is a good practice.
+        String message = String.format(
+                "{\"showId\": %d, \"newStartTime\": \"%s\"}",
+                savedShow.getId(),
+                savedShow.getStartTime().toString()
+        );
+        kafkaTemplate.send("show-updated-topic", message);
+
         // 5. Map to a response DTO and return
         return mapToShowResponseDto(savedShow); // Use your existing helper method
     }
@@ -205,8 +219,7 @@ public class ShowService {
         if (hasBookedSeats) {
             throw new RuntimeException("Cannot delete show: It has active bookings.");
         }
-        // deleting the Show will automatically delete all of its associated ShowSeat inventory.
-
+        // deleting the Show will cascade and automatically delete all of its associated ShowSeat inventory.
         showRepository.deleteById(showId);
     }
 

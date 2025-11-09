@@ -11,7 +11,10 @@ import com.example.MovieBooking.repository.UserRepository;
 import com.example.MovieBooking.security.JwtTokenProvider;
 import com.example.MovieBooking.service.AuthService;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -38,6 +41,10 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
 
     private final JwtTokenProvider jwtTokenProvider;
+
+    private final KafkaTemplate<String, String> kafkaTemplate;
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(AuthServiceImpl.class);
 
     /**
      * Authenticates a user and returns a JWT.
@@ -114,6 +121,14 @@ public class AuthServiceImpl implements AuthService {
 
         // 4. Save user to database
         userRepository.save(user);
+
+        try {
+            kafkaTemplate.send("user-registered-topic", user.getEmail());
+        } catch (Exception e) {
+            // Log the error, but don't fail the registration
+            // (This is "fire and forget")
+            LOGGER.warn("Failed to send user registration to Kafka, but user was created. User: {}", user.getEmail(), e);
+        }
 
         return "User registered successfully.";
     }

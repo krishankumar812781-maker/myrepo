@@ -94,7 +94,7 @@ public class BookingService {
         showSeatRepository.saveAll(lockedSeats);
 
         // 5. Publish to Kafka
-        //kafkaTemplate.send("booking-confirmed-topic", "Booking " + savedBooking.getId() + " confirmed.");
+        kafkaTemplate.send("booking-confirmed-topic", "Booking " + savedBooking.getId() + " confirmed.");
 
         // 6. Map to a Response DTO and return
         return mapToBookingResponseDto(savedBooking, lockedSeats);
@@ -158,6 +158,9 @@ public class BookingService {
         // 5. Update the booking itself
         booking.setBookingStatus(BookingStatus.CANCELLED);
         Booking cancelledBooking = bookingRepository.save(booking);
+
+        // Publish the cancellation event
+        kafkaTemplate.send("booking-cancelled-topic", "Booking " + cancelledBooking.getId() + " cancelled.");
 
         // 6. Return the updated booking "receipt"
         return mapToBookingResponseDto(cancelledBooking, seatsToRelease);
