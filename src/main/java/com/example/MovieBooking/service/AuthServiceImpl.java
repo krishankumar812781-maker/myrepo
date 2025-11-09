@@ -1,6 +1,7 @@
 package com.example.MovieBooking.service;
 
 import com.example.MovieBooking.dto.RequestDto.LoginDto;
+import com.example.MovieBooking.dto.RequestDto.RefreshTokenRequestDto;
 import com.example.MovieBooking.dto.RequestDto.RegisterDto;
 import com.example.MovieBooking.dto.JwtAuthResponseDto;
 import com.example.MovieBooking.entity.User;
@@ -15,9 +16,12 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -39,9 +43,9 @@ public class AuthServiceImpl implements AuthService {
      * Authenticates a user and returns a JWT.
      */
     @Override
+    @Transactional
     public JwtAuthResponseDto login(LoginDto loginDto) {
 
-        // 1. Authenticate using Spring Security
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
                         loginDto.getUsernameOrEmail(),
@@ -49,19 +53,28 @@ public class AuthServiceImpl implements AuthService {
                 )
         );
 
-        // 2. Set the authentication in the SecurityContext
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
-        // 3. Generate the JWT
-        String token = jwtTokenProvider.generateToken(authentication);
+        // --- Generate BOTH tokens ---
+        String accessToken = jwtTokenProvider.generateAccessToken(authentication);
+        String refreshToken = jwtTokenProvider.generateRefreshToken(authentication);
 
-        return new JwtAuthResponseDto(token);
+        // --- Save the refresh token to the user in the DB ---
+        User user = userRepository.findByEmail(authentication.getName())
+                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+
+        user.setRefreshToken(refreshToken);
+        user.setRefreshTokenExpiry(jwtTokenProvider.getExpiryDateFromToken(refreshToken).toInstant());
+        userRepository.save(user);
+
+        return new JwtAuthResponseDto(accessToken, refreshToken);
     }
 
     /**
      * Registers a new user.
      */
     @Override
+    @Transactional
     public String register(RegisterDto registerDto) {
 
         // 1. Check if username or email already exists
@@ -103,5 +116,38 @@ public class AuthServiceImpl implements AuthService {
         userRepository.save(user);
 
         return "User registered successfully.";
+    }
+
+
+    // --- IMPLEMENT NEW REFRESH TOKEN METHOD ---
+    @Override
+    @Transactional
+    public JwtAuthResponseDto refreshToken(RefreshTokenRequestDto refreshTokenRequestDto) {
+        String requestRefreshToken = refreshTokenRequestDto.getRefreshToken();
+
+        // 1. Find user by the refresh token
+        User user = userRepository.findByRefreshToken(requestRefreshToken)
+                .orElseThrow(() -> new RuntimeException("Refresh token not found."));
+
+        // 2. Check if the token is expired
+        if (user.getRefreshTokenExpiry().isBefore(Instant.now())) {
+            // Clean up the expired token
+            user.setRefreshToken(null);
+            user.setRefreshTokenExpiry(null);
+            userRepository.save(user);
+            throw new RuntimeException("Refresh token has expired. Please log in again.");
+        }
+
+        // --- 3. GENERATE *BOTH* NEW TOKENS (This is the change) ---
+        String newAccessToken = jwtTokenProvider.generateAccessTokenFromEmail(user.getEmail());
+        String newRefreshToken = jwtTokenProvider.generateRefreshTokenFromEmail(user.getEmail()); // <-- NEW
+
+        // --- 4. SAVE THE *NEW* REFRESH TOKEN TO THE DATABASE ---
+        user.setRefreshToken(newRefreshToken);
+        user.setRefreshTokenExpiry(jwtTokenProvider.getExpiryDateFromToken(newRefreshToken).toInstant());
+        userRepository.save(user);
+
+        // --- 5. RETURN BOTH *NEW* TOKENS ---
+        return new JwtAuthResponseDto(newAccessToken, newRefreshToken);
     }
 }

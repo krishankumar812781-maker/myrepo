@@ -35,6 +35,7 @@ public class Screen {
     @OneToMany(
             mappedBy = "screen",
             cascade = CascadeType.ALL,
+            orphanRemoval = true,
             fetch = FetchType.LAZY
     )
     private List<Seat> seats = new ArrayList<>();
@@ -42,6 +43,7 @@ public class Screen {
     @OneToMany(
             mappedBy = "screen",
             cascade = CascadeType.ALL,
+            orphanRemoval = true,
             fetch = FetchType.LAZY
     )
     private List<Show> shows = new ArrayList<>();

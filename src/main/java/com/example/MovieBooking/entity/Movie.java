@@ -10,11 +10,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "movies")
+@Table(name = "movies", indexes = {
+        @Index(name = "idx_movie_language", columnList = "language"),
+        @Index(name = "idx_movie_genre", columnList = "genre")
+})
 @Getter
 @Setter
 @NoArgsConstructor
-@ToString
+@ToString(exclude = {"show"}) // Exclude relationships
 public class Movie {
 
     @Id

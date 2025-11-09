@@ -36,18 +36,18 @@ public class Booking {
 
     //Relationships
 
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @ManyToOne(fetch = FetchType.EAGER)  //there are many bookings for one show
+    @ManyToOne(fetch = FetchType.LAZY)  //there are many bookings for one show
     @JoinColumn(name = "show_id", nullable = false)
     private Show show;
 
     
     @OneToMany(
             mappedBy = "booking",
-            cascade = CascadeType.ALL, // When a booking is deleted, its seat links are removed
+            cascade = CascadeType.ALL,// yaha orphanRemoval nahi krna
             fetch = FetchType.LAZY
     )
     private List<ShowSeat> showSeats = new ArrayList<>();

@@ -67,14 +67,9 @@ public class MovieService {
 
     public MovieDto updateMovie(Long id, MovieDto movieDto) {
         Movie movie=movieRepository.findById(id).orElseThrow(()->new RuntimeException("Movie not found with id: "+id));
-        movie.setTitle(movieDto.getTitle());
-        movie.setGenre(movieDto.getGenre());
-        movie.setLanguage(movieDto.getLanguage());
-        movie.setDuration(movieDto.getDuration());
-        movie.setDescription(movieDto.getDescription());
-        movie.setPosterUrl(movieDto.getPosterUrl());
+        Movie movietoUpdate=modelMapper.map(movieDto, Movie.class);
 
-       Movie mov= movieRepository.save(movie);
+        Movie mov= movieRepository.save(movie);
          return modelMapper.map(mov, MovieDto.class);
     }
 

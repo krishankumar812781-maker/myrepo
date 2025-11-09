@@ -5,6 +5,7 @@ import lombok.Data;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Data
@@ -21,5 +22,5 @@ public class BookingResponseDto {
     private LocalDateTime showStartTime;
 
     // Simple list of seat numbers
-    private List<String> bookedSeats;
+    private List<String> bookedSeats=new ArrayList<>();
 }

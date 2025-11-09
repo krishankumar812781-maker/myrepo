@@ -44,21 +44,21 @@ public class TheaterController {
     // --- Admin Endpoints (Secured) ---
 
     @PostMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     public ResponseEntity<TheaterDto> addTheater(@RequestBody TheaterDto theaterDTO) {
         TheaterDto newTheater = theaterService.addTheater(theaterDTO);
         return new ResponseEntity<>(newTheater, HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     public ResponseEntity<TheaterDto> updateTheater(@PathVariable Long id, @RequestBody TheaterDto theaterDTO) {
         TheaterDto updatedTheater = theaterService.updateTheater(id, theaterDTO);
         return ResponseEntity.ok(updatedTheater);
     }
 
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ROLE_ADMIN')")
     public ResponseEntity<String> deleteTheater(@PathVariable Long id) {
         theaterService.deleteTheater(id);
         return ResponseEntity.ok("Theater deleted successfully");

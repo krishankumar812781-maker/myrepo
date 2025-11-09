@@ -37,6 +37,7 @@ public class Theater {
     @OneToMany(
             mappedBy = "theater",
             cascade = CascadeType.ALL,
+            orphanRemoval = true,
             fetch = FetchType.LAZY
     )
     private List<Screen> screens = new ArrayList<>();

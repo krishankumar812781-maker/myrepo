@@ -18,18 +18,40 @@ public class JwtTokenProvider {
     private String jwtSecret;
 
     @Value("${app.jwt-expiration-milliseconds}")
-    private long jwtExpirationMs;
+    private long jwtAccessExpirationMs; // Renamed for clarity
 
-    // Helper to convert the secret string to a Key
+    // --- ADD NEW EXPIRATION VALUE ---
+    @Value("${app.jwt-refresh-expiration-milliseconds}")
+    private long jwtRefreshExpirationMs;
+
     private SecretKey getSigningKey() {
         return Keys.hmacShaKeyFor(jwtSecret.getBytes());
     }
 
-    // 1. Generate a new JWT
-    public String generateToken(Authentication authentication) {
-        String username = authentication.getName(); // This will be the user's email
+    // --- Generate Access Token (Your old generateToken method) ---
+    public String generateAccessToken(Authentication authentication) {
+        String username = authentication.getName();
+        return generateToken(username, jwtAccessExpirationMs); // Call helper
+    }
+
+    public String generateAccessTokenFromEmail(String email) {
+        return generateToken(email, jwtAccessExpirationMs); // Call helper
+    }
+    //-- for Rolling Refresh Token System
+    public String generateRefreshTokenFromEmail(String email) {
+        return generateToken(email, jwtRefreshExpirationMs);
+    }
+
+    // --- ADD NEW METHOD: Generate Refresh Token ---
+    public String generateRefreshToken(Authentication authentication) {
+        String username = authentication.getName();
+        return generateToken(username, jwtRefreshExpirationMs); // Call helper
+    }
+
+    // --- CREATE A PRIVATE HELPER METHOD ---
+    private String generateToken(String username, long expirationMs) {
         Date currentDate = new Date();
-        Date expireDate = new Date(currentDate.getTime() + jwtExpirationMs);
+        Date expireDate = new Date(currentDate.getTime() + expirationMs);
 
         return Jwts.builder()
                 .subject(username)
@@ -37,6 +59,16 @@ public class JwtTokenProvider {
                 .expiration(expireDate)
                 .signWith(getSigningKey())
                 .compact();
+    }
+
+    // This helper gets the expiry date from a token
+    public Date getExpiryDateFromToken(String token) {
+        Claims claims = Jwts.parser()
+                .verifyWith(getSigningKey())
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+        return claims.getExpiration();
     }
 
     // 2. Get the username (email) from the token

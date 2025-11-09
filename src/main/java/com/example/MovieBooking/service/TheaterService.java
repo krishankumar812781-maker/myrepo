@@ -24,11 +24,7 @@ public class TheaterService {
 
     public TheaterDto updateTheater(Long id, TheaterDto theaterDto) {
         Theater theater=theaterRepository.findById(id).orElseThrow(()->new RuntimeException("Theater not found"));
-        theater.setName(theaterDto.getName());
-        theater.setAddress(theaterDto.getAddress());
-        theater.setCity(theaterDto.getCity());
-        theater.setLatitude(theaterDto.getLatitude());
-        theater.setLongitude(theaterDto.getLongitude());
+        Theater updateTheater=modelMapper.map(theaterDto,Theater.class);
         Theater updatedTheater=theaterRepository.save(theater);
         return modelMapper.map(updatedTheater, TheaterDto.class);
     }

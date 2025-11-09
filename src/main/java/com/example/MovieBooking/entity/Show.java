@@ -15,7 +15,7 @@ import java.util.List;
 @Getter
 @Setter
 @NoArgsConstructor
-@ToString(exclude = {"movie", "screen"}) // Exclude relationships
+@ToString(exclude = {"movie", "screen","showSeat"}) // Exclude relationships
 public class Show {
 
     @Id
@@ -38,6 +38,6 @@ public class Show {
     @JoinColumn(name = "screen_id", nullable = false)
     private Screen screen;
 
-    @OneToMany(mappedBy = "show", cascade = CascadeType.ALL,fetch = FetchType.LAZY)
+    @OneToMany(mappedBy = "show", cascade = CascadeType.ALL,orphanRemoval = true,fetch = FetchType.LAZY)
     private List<ShowSeat> showSeat=new ArrayList<>();
 }

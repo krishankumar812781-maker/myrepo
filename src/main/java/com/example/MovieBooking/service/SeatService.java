@@ -34,7 +34,7 @@ public class SeatService {
                     seat.setSeatType(seatInfo.getSeatType());
                     return seat;
                 })
-                .collect(Collectors.toList());
+                .toList();
 
         seatRepository.saveAll(seatsToSave);
         return "Added " + seatsToSave.size() + " seats to screen " + screen.getName();

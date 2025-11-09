@@ -37,14 +37,12 @@ public class ScreenService {
         Screen screen = new Screen();
         screen.setName(screenRequestDto.getName());
         screen.setScreenType(screenRequestDto.getScreenType());
-
-        // 3. Set the relationship
         screen.setTheater(theater);
 
-        // 4. Save the new screen (its ID will be null, so JPA performs an INSERT)
+        // 3. Save the new screen (its ID will be null, so JPA performs an INSERT)
         Screen savedScreen = screenRepository.save(screen);
 
-        // 5. Map the saved entity to a response DTO
+        // 4. Map the saved entity to a response DTO
         return mapToScreenResponseDto(savedScreen);
     }
 

@@ -7,6 +7,7 @@ import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.HashMap;
 import java.util.Map;
 
 @Getter
@@ -25,5 +26,5 @@ public class ShowRequestDto {
 
     // Key: SeatType (String, e.g., "REGULAR", "PREMIUM")
     // Value: Price for that seat type
-    private Map<String, BigDecimal> seatPrices;
+    private Map<String, BigDecimal> seatPrices=new HashMap<>();
 }

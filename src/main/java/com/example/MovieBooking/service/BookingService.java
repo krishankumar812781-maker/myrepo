@@ -40,7 +40,7 @@ public class BookingService {
     private final KafkaTemplate<String, String> kafkaTemplate;
 
 
-    // 3. ADD THE MISSING ANNOTATION
+
     @Transactional()
     public BookingResponseDto createBooking(String userEmail, BookingRequestDto bookingRequestDto) {
         // 1. Find the User and Show
@@ -101,7 +101,7 @@ public class BookingService {
     }
 
 
-    @Transactional(readOnly = true) // <-- This annotation is correct (from Spring)
+    @Transactional(readOnly = true)
     public List<BookingResponseDto> getBookingsForUser(String userEmail) {
         User user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -117,7 +117,7 @@ public class BookingService {
     }
 
 
-    @Transactional(readOnly = true) // <-- This annotation is correct (from Spring)
+    @Transactional(readOnly = true)
     public BookingResponseDto getBookingById(Long bookingId, String userEmail) {
         User user = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -130,7 +130,7 @@ public class BookingService {
         return mapToBookingResponseDto(booking, seats);
     }
 
-    @Transactional // <-- This annotation is correct (from Spring)
+    @Transactional
     public BookingResponseDto cancelBooking(Long bookingId, String userEmail) {
         // 1. Find the User and the Booking
         User user = userRepository.findByEmail(userEmail)

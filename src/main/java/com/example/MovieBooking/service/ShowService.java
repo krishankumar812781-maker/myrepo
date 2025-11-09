@@ -7,10 +7,10 @@ import com.example.MovieBooking.dto.ShowSeatDto;
 import com.example.MovieBooking.entity.*;
 import com.example.MovieBooking.entity.type.SeatStatus;
 import com.example.MovieBooking.repository.*;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -33,7 +33,7 @@ public class ShowService {
 
     private final ModelMapper modelMapper;
 
-    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    @Transactional(readOnly = true)
     public List<ShowSeatDto> getSeatsForShow(Long showId) {
         // ... (your existsById check) ...
 
@@ -45,6 +45,7 @@ public class ShowService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
     public List<ShowResponseDto> getShowsByTheaterId(Long theaterId) {
         // Step 1: Find all screens belonging to the given theater
         List<Screen> screens=screenRepository.findByTheaterId(theaterId);
@@ -62,10 +63,8 @@ public class ShowService {
         // Step 3: Convert entities to DTOs and return
         //here show is like i in loop it is to represent the single item from the list that is being processed right now
         return allShows.stream()
-                .map(show -> modelMapper.map(show, ShowResponseDto.class))
+                .map(this::mapToShowResponseDto)
                 .toList();
-
-
     }
 
     @Transactional
@@ -91,7 +90,7 @@ public class ShowService {
 
             // --- 2. GENERATE SHOWSEAT INVENTORY  ---
 
-            // Get the price map and template seats
+            // Get the price map and template seats- and create ShowSeats
             Map<String, BigDecimal> seatPriceConfig = showRequestDto.getSeatPrices();
             List<Seat> templateSeats = seatRepository.findByScreenId(screen.getId());
 
@@ -120,24 +119,20 @@ public class ShowService {
             // --- 3. MAPPING (Entity to DTO) ---
             // We use ModelMapper for simple fields, then manually set the rest.
 
-            ShowResponseDto responseDto = modelMapper.map(savedShow, ShowResponseDto.class);
-            // Manually set the "flattened" data
-            responseDto.setMovieTitle(savedShow.getMovie().getTitle());
-            responseDto.setMoviePosterUrl(savedShow.getMovie().getPosterUrl());
-            responseDto.setScreenName(savedShow.getScreen().getName());
-            responseDto.setTheaterName(savedShow.getScreen().getTheater().getName());
-            return responseDto;
+           return mapToShowResponseDto(savedShow);
     }
 
 
+    @Transactional(readOnly = true)
     public List<ShowResponseDto> getAllShows() {
         return showRepository.findAll()
                 .stream()
-                .map(show -> modelMapper.map(show, ShowResponseDto.class))
+                .map(this::mapToShowResponseDto)
                 .toList();
     }
 
 
+    @Transactional(readOnly = true)
     public List<ShowResponseDto> getShowsByMovieId(Long movieId) {
         Movie movie = movieRepository.findById(movieId)
                 .orElseThrow(() -> new RuntimeException("Movie not found with id: " + movieId));
@@ -145,7 +140,7 @@ public class ShowService {
         List<Show> shows = showRepository.findShowByMovieId(movieId);
 
         return shows.stream()
-                .map(show -> modelMapper.map(show, ShowResponseDto.class))
+                .map(this::mapToShowResponseDto)
                 .toList();
 
     }

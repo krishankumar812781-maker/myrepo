@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.ToString;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -43,6 +44,11 @@ public class User {
     @Column(name = "role", nullable = false, length = 30) // This is the column that will store the role string
     @Enumerated(EnumType.STRING) // Store roles as "ROLE_USER", "ROLE_ADMIN"
     private Set<Role> roles = new HashSet<>();
+
+    @Column(length = 512) // Give it enough space
+    private String refreshToken;
+
+    private Instant refreshTokenExpiry;
 
 
     @Enumerated(EnumType.STRING)

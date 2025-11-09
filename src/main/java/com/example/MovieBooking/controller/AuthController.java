@@ -2,11 +2,10 @@ package com.example.MovieBooking.controller;
 
 import com.example.MovieBooking.dto.JwtAuthResponseDto;
 import com.example.MovieBooking.dto.RequestDto.LoginDto;
+import com.example.MovieBooking.dto.RequestDto.RefreshTokenRequestDto;
 import com.example.MovieBooking.dto.RequestDto.RegisterDto;
-import com.example.MovieBooking.dto.RequestDto.LoginDto;
 import com.example.MovieBooking.service.AuthService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -27,8 +26,8 @@ public class AuthController {
      */
     @PostMapping("/login")
     public ResponseEntity<JwtAuthResponseDto> login(@RequestBody LoginDto loginDto) {
-        String token = authService.login(loginDto).getAccessToken();
-        return ResponseEntity.ok(new JwtAuthResponseDto(token));
+         JwtAuthResponseDto jwtAuthResponse = authService.login(loginDto);
+        return new ResponseEntity<>(jwtAuthResponse,HttpStatus.OK);
     }
 
     /**
@@ -39,5 +38,12 @@ public class AuthController {
     public ResponseEntity<String> register(@RequestBody RegisterDto registerDto) {
         String response = authService.register(registerDto);
         return new ResponseEntity<>(response, HttpStatus.CREATED);
+    }
+
+    // --- ADD NEW ENDPOINT FOR REFRESHING ---
+    @PostMapping("/refresh")
+    public ResponseEntity<JwtAuthResponseDto> refreshToken(@RequestBody RefreshTokenRequestDto refreshTokenRequestDto) {
+        JwtAuthResponseDto jwtAuthResponse = authService.refreshToken(refreshTokenRequestDto);
+        return new ResponseEntity<>(jwtAuthResponse,HttpStatus.OK);
     }
 }
