@@ -1,7 +1,9 @@
 package com.example.MovieBooking.controller;
 
+import com.example.MovieBooking.dto.RequestDto.TheaterRequestDto;
 import com.example.MovieBooking.dto.ShowResponseDto;
-import com.example.MovieBooking.dto.RequestDto.TheaterDto;
+import com.example.MovieBooking.dto.TheaterResponseDto;
+import com.example.MovieBooking.dto.TheaterResponseDto;
 import com.example.MovieBooking.service.ShowService;
 import com.example.MovieBooking.service.TheaterService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,14 +27,14 @@ public class TheaterController {
     // --- Public Endpoints (for any user) ---
 
     @GetMapping
-    public ResponseEntity<List<TheaterDto>> getAllTheaters() {
-        List<TheaterDto> theaters = theaterService.getAllTheaters();
-        return ResponseEntity.ok(theaters);
+    public ResponseEntity<?> getAllTheaters() {
+        List<TheaterResponseDto> theaters = theaterService.getAllTheaters();
+        return new ResponseEntity<>(theaters, HttpStatus.OK);
     }
     @GetMapping("/city")
-    public ResponseEntity<List<TheaterDto>> getTheaterByLocation(@RequestParam String city) {
-        List<TheaterDto> theaters = theaterService.findTheatersByCity(city);
-        return ResponseEntity.ok(theaters);
+    public ResponseEntity<?> getTheaterByLocation(@RequestParam String city) {
+        List<TheaterResponseDto> theaters = theaterService.findTheatersByCity(city);
+        return new ResponseEntity<>(theaters, HttpStatus.OK);
     }
 
     @GetMapping("/{theaterId}/shows")
@@ -45,22 +47,22 @@ public class TheaterController {
 
     @PostMapping
     @PreAuthorize("hasRole('ROLE_ADMIN')")
-    public ResponseEntity<TheaterDto> addTheater(@RequestBody TheaterDto theaterDTO) {
-        TheaterDto newTheater = theaterService.addTheater(theaterDTO);
+    public ResponseEntity<?> addTheater(@RequestBody TheaterRequestDto theaterDTO) {
+        TheaterResponseDto newTheater = theaterService.addTheater(theaterDTO);
         return new ResponseEntity<>(newTheater, HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
-    public ResponseEntity<TheaterDto> updateTheater(@PathVariable Long id, @RequestBody TheaterDto theaterDTO) {
-        TheaterDto updatedTheater = theaterService.updateTheater(id, theaterDTO);
-        return ResponseEntity.ok(updatedTheater);
+    public ResponseEntity<?> updateTheater(@PathVariable Long id, @RequestBody TheaterRequestDto theaterDTO) {
+        TheaterResponseDto updatedTheater = theaterService.updateTheater(id, theaterDTO);
+        return new ResponseEntity<>(updatedTheater, HttpStatus.OK);
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     public ResponseEntity<String> deleteTheater(@PathVariable Long id) {
         theaterService.deleteTheater(id);
-        return ResponseEntity.ok("Theater deleted successfully");
+        return new ResponseEntity<>("Theater deleted successfully", HttpStatus.OK);
     }
 }
