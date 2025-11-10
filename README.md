@@ -15,7 +15,7 @@ This project demonstrates proficiency in several advanced, high-demand backend s
 ### 🔒 1. Solved Critical Concurrency with Pessimistic Locking
 
   * **Outcome:** Successfully prevented the "double booking" race condition.
-  * **How:** When a user attempts to book, the `BookingService` uses a **`@Lock(LockModeType.PESSIMISTIC_WRITE)`** annotation. This tells the database (MySQL) to place an exclusive lock on the selected `ShowSeat` rows.
+  * **How:** When a user attempts to book, the `BookingService` uses a **`@Lock(LockModeType.PESSIMISTIC_WRITE)`** . This tells the database (MySQL) to place an exclusive lock on the selected `ShowSeat` rows.
   * **Proof:** A multi-threaded **integration test** (using `CountDownLatch` and `ExecutorService`) was written to simulate two users attempting to book the same seat simultaneously. The test **passes**, proving that one user successfully books the seat while the other correctly receives an exception, ensuring 100% data integrity.
 
 ### 🔑 2. Implemented a Secure, Stateless Authentication System
@@ -24,7 +24,7 @@ This project demonstrates proficiency in several advanced, high-demand backend s
   * **How:**
       * **JWT (JSON Web Tokens):** The API is stateless. A user logs in and receives a short-lived `accessToken`.
       * **Rolling Refresh Tokens:** To provide a seamless "never log me out" user experience (like YouTube or Netflix), a long-lived `refreshToken` is also issued. This token can be used to get a new `accessToken` and is automatically "rolled" (re-issued) on each use to enhance security.
-      * **Role-Based Access Control (RBAC):** Endpoints are secured based on user roles (e.g., `ROLE_USER` vs. `ROLE_ADMIN`) using `@PreAuthorize` annotations.
+      * **Role-Based Access Control (RBAC):** Endpoints are secured based on user roles (e.g., `ROLE_USER` vs. `ROLE_ADMIN`).
 
 ### 🚀 3. Built an Event-Driven Architecture with Kafka
 
@@ -32,7 +32,7 @@ This project demonstrates proficiency in several advanced, high-demand backend s
   * **How:** The application publishes events to Kafka for significant business actions.
       * **Producers:** The `BookingService` and `AuthService` use `KafkaTemplate` to send "fire and forget" messages. This ensures that a primary action (like user registration) succeeds *even if* a secondary service (like sending an email) is down.
       * **Consumers:** A `NotificationService` uses `@KafkaListener` to listen for topics like `user-registered-topic` and `booking-confirmed-topic` to handle asynchronous tasks (like sending welcome emails).
-      * **Critical Events:** For critical events (like `show-cancelled`), the Kafka send is *not* wrapped in a `try-catch`. This correctly uses the `@Transactional` nature of the method to **roll back** the entire operation if the refund/notification message fails to send, preventing data corruption.
+      * **Critical Events:** For critical events (like `show-cancelled`), This correctly uses the `@Transactional` nature of the method to **roll back** the entire operation if the refund/notification message fails to send, preventing data corruption.
 
 ### 🗺️ 4. Integrated Third-Party APIs for Data Enrichment
 
@@ -43,8 +43,8 @@ This project demonstrates proficiency in several advanced, high-demand backend s
 
   * **Outcome:** Ensured code reliability and correctness.
   * **How:**
-      * **Unit Tests:** Used **Mockito** (`@Mock`, `@InjectMocks`) to test services like `AuthService` in isolation.
-      * **Integration Tests:** Used **`@SpringBootTest`** with an H2 in-memory database to test the full application context, including the pessimistic locking concurrency test.
+      * **Unit Tests:** Used **Mockito** to test services like `AuthService` in isolation.
+      * **Integration Tests:** Used SpringBootTest with an MySql database to test the full application context, including the pessimistic locking concurrency test.
 
 -----
 
@@ -66,7 +66,7 @@ This application is a **Modular Monolith** connected to a containerized environm
 ## 💻 Technologies Used
 
   * **Backend:** Spring Boot, Spring Security, Spring Data JPA
-  * **Database:** MySQL (Production) & H2 (Testing)
+  * **Database:** MySQL (Production)
   * **Messaging:** Apache Kafka
   * **Testing:** JUnit 5, Mockito, Spring Boot Test
   * **DevOps:** Docker, Docker Compose
