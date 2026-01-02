@@ -30,9 +30,9 @@ public class Theater {
     @Column(nullable = false)
     private String city;
 
-    private Double latitude; // For Google Maps
+    private Double latitude; // For Maps
 
-    private Double longitude; // For Google Maps
+    private Double longitude; // For Maps
 
     @OneToMany(
             mappedBy = "theater",

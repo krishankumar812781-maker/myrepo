@@ -11,6 +11,8 @@ services:
       MYSQL_DATABASE: BookingDatabase
     volumes:
       - mysql-data:/var/lib/mysql
+    networks:
+      - booking-net
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.4.0
@@ -21,6 +23,8 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - booking-net
 
   kafka:
     image: confluentinc/cp-kafka:7.4.0
@@ -30,7 +34,7 @@ services:
       - zookeeper
     ports:
       - "9092:9092"
-      - "29092:29092"   #public external access used this in application.properties
+      - "29092:29092"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
@@ -38,8 +42,9 @@ services:
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+    networks:
+      - booking-net
 
-  # --- THIS IS THE NEW PART ---
   kafdrop:
     image: obsidiandynamics/kafdrop:latest
     container_name: kafdrop
@@ -48,8 +53,15 @@ services:
     ports:
       - "9000:9000"
     environment:
+      # We use kafka:9092 because Kafdrop is INSIDE the docker network
       KAFKA_BROKERCONNECT: "kafka:9092"
+      JVM_OPTS: "-Xms32M -Xmx64M"
+    networks:
+      - booking-net
 
-# --- 3. ADD A VOLUME FOR YOUR DATABASE DATA ---
+networks:
+  booking-net:
+    driver: bridge
+
 volumes:
   mysql-data:

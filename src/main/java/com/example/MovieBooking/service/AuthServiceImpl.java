@@ -1,6 +1,7 @@
 package com.example.MovieBooking.service;
 
 import com.example.MovieBooking.dto.RequestDto.LoginDto;
+import com.example.MovieBooking.dto.RequestDto.LoginResponseDto;
 import com.example.MovieBooking.dto.RequestDto.RefreshTokenRequestDto;
 import com.example.MovieBooking.dto.RequestDto.RegisterDto;
 import com.example.MovieBooking.dto.JwtAuthResponseDto;
@@ -11,16 +12,21 @@ import com.example.MovieBooking.repository.UserRepository;
 import com.example.MovieBooking.security.JwtTokenProvider;
 import com.example.MovieBooking.service.AuthService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.kafka.common.security.auth.Login;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +35,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AuthServiceImpl implements AuthService {
@@ -135,6 +142,10 @@ public class AuthServiceImpl implements AuthService {
 
 
     // --- IMPLEMENT NEW REFRESH TOKEN METHOD ---
+    //1. You receive the refreshToken and extract the email.
+    //2. You go to the userRepository to find that user.
+    //3. You get the roles (e.g., ROLE_ADMIN) from that user entity.
+    //4. You call generateAccessTokenFromEmail(email, roles) to create the new token with the role baked in.
     @Override
     @Transactional
     public JwtAuthResponseDto refreshToken(RefreshTokenRequestDto refreshTokenRequestDto) {
@@ -154,8 +165,14 @@ public class AuthServiceImpl implements AuthService {
         }
 
         // --- 3. GENERATE *BOTH* NEW TOKENS (This is the change) ---
-        String newAccessToken = jwtTokenProvider.generateAccessTokenFromEmail(user.getEmail());
-        String newRefreshToken = jwtTokenProvider.generateRefreshTokenFromEmail(user.getEmail()); // <-- NEW
+        // ⚡ CHANGE 1: Convert roles to a string for the JWT
+        String rolesStr = user.getRoles().stream()
+                .map(Enum::name)
+                .collect(Collectors.joining(","));
+
+        // ⚡ CHANGE 2: Pass the roles string to the provider
+        String newAccessToken = jwtTokenProvider.generateAccessTokenFromEmail(user.getEmail(), rolesStr);
+        String newRefreshToken = jwtTokenProvider.generateRefreshTokenFromEmail(user.getEmail(), rolesStr);// <-- NEW
 
         // --- 4. SAVE THE *NEW* REFRESH TOKEN TO THE DATABASE ---
         user.setRefreshToken(newRefreshToken);
@@ -165,4 +182,94 @@ public class AuthServiceImpl implements AuthService {
         // --- 5. RETURN BOTH *NEW* TOKENS ---
         return new JwtAuthResponseDto(newAccessToken, newRefreshToken);
     }
+
+    //Add roles here also while generating tokens for OAuth2 login
+    @Override
+    @Transactional
+    public ResponseEntity<JwtAuthResponseDto> handleOAuth2LoginRequest(OAuth2User oAuth2User, String registrationId) {
+
+        // 1. Determine provider type
+        AuthProvider providerType = switch (registrationId.toLowerCase()) {
+            case "google" -> AuthProvider.GOOGLE;
+            case "github" -> AuthProvider.GITHUB;
+            case "facebook" -> AuthProvider.FACEBOOK;
+            default -> throw new IllegalArgumentException("Unsupported OAuth2 provider: " + registrationId);
+        };
+
+        // 2. Extract unique Provider ID and Email
+        String providerId = registrationId.equalsIgnoreCase("google")
+                ? oAuth2User.getAttribute("sub")
+                : oAuth2User.getAttribute("id").toString();
+
+        String email = oAuth2User.getAttribute("email");
+
+        if (email == null || email.isBlank()) {
+            throw new IllegalArgumentException("Email not provided by " + registrationId);
+        }
+
+        // 3. Logic: Find existing user or create new one
+        User user = userRepository.findByEmail(email).orElse(null);
+
+        if (user == null) {
+            // --- NEW USER REGISTRATION ---
+            user = new User();
+            user.setEmail(email);
+            user.setUsername(determineUsernameFromOAuth2User(oAuth2User, registrationId, providerId));
+            user.setAuthProvider(providerType);
+            user.setProviderId(providerId);
+            user.setPassword(""); // OAuth users don't need a local password
+
+            Set<Role> roles = new HashSet<>();
+            roles.add(Role.ROLE_USER);
+            user.setRoles(roles);
+
+            user = userRepository.save(user);
+            log.info("Registered new OAuth2 user: {}", email);
+        } else {
+            // --- EXISTING USER LOGIC ---
+            // Check if they previously signed up with a different provider (e.g., Local or GitHub)
+            if (user.getAuthProvider() != providerType && user.getAuthProvider() != AuthProvider.LOCAL) {
+                throw new BadCredentialsException("This email is already registered via " + user.getAuthProvider());
+            }
+
+            // Update provider info if it was a local account transitioning to OAuth
+            if (user.getProviderId() == null) {
+                user.setProviderId(providerId);
+                user.setAuthProvider(providerType);
+                userRepository.save(user);
+            }
+        }
+
+        // 4. Generate Tokens (Matching your Login method logic)
+        String rolesStr = user.getRoles().stream()
+                .map(Enum::name)
+                .collect(Collectors.joining(","));
+
+        // ⚡ CHANGE 4: Pass roles here too
+        String accessToken = jwtTokenProvider.generateAccessTokenFromEmail(user.getEmail(), rolesStr);
+        String refreshToken = jwtTokenProvider.generateRefreshTokenFromEmail(user.getEmail(), rolesStr);
+
+
+        // 5. Update Refresh Token in DB
+        user.setRefreshToken(refreshToken);
+        user.setRefreshTokenExpiry(jwtTokenProvider.getExpiryDateFromToken(refreshToken).toInstant());
+        userRepository.save(user);
+
+        return ResponseEntity.ok(new JwtAuthResponseDto(accessToken, refreshToken));
+    }
+
+    public String determineUsernameFromOAuth2User(OAuth2User oAuth2User, String registrationId, String providerId) {
+        //jarurui nahi hai ki Auth2Provider hame user ki email provide kr de so hame aur kuch fill kr denge
+        String email = oAuth2User.getAttribute("email");
+        if (email != null && !email.isBlank()) {
+            return email;
+        }
+
+        return switch (registrationId.toLowerCase()) {
+            case "google" -> oAuth2User.getAttribute("sub");
+            case "github" -> oAuth2User.getAttribute("login");
+            default -> providerId;
+        };
+    }
+
 }

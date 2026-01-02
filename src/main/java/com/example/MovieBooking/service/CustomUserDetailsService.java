@@ -35,6 +35,7 @@ public class CustomUserDetailsService implements UserDetailsService {
                 .collect(Collectors.toSet());
 
         // 3. Return a new Spring Security User object ( UserDetails )
+        //To get the roles into the JWT, they must first exist inside the Authentication object
         return new org.springframework.security.core.userdetails.User(
                 user.getEmail(),
                 user.getPassword(),

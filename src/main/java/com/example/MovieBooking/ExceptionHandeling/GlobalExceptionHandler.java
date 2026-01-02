@@ -1,6 +1,5 @@
 package com.example.MovieBooking.ExceptionHandeling;
 
-import com.example.MovieBooking.dto.ErrorDetailsDto;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;

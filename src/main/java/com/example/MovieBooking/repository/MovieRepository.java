@@ -17,4 +17,6 @@ public interface MovieRepository extends JpaRepository<Movie, Long> {
      //because name is field in Movie entity
      Optional<Movie> findByTitle(String title);
 
+
+
 }

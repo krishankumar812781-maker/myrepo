@@ -35,6 +35,12 @@ public class User {
     @Column(nullable = false, unique = true)
     private String email;
 
+    @Enumerated(EnumType.STRING)
+    private AuthProvider providerType;
+
+    private String providerId;
+
+
     // --- ADDED NEW MULTI-ROLE FIELD ---
     @ElementCollection(fetch = FetchType.EAGER) // EAGER is often best for security roles
     @CollectionTable(
