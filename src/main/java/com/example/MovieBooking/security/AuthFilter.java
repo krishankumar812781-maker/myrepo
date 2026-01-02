@@ -2,9 +2,10 @@ package com.example.MovieBooking.security;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.http.Cookie; // Added for cookie handling
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.beans.factory.annotation.Qualifier; // Import this
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -24,8 +25,6 @@ public class AuthFilter extends OncePerRequestFilter {
     private final UserDetailsService userDetailsService;
     private final HandlerExceptionResolver resolver;
 
-    // We must manually define the constructor to use @Qualifier
-    // because @RequiredArgsConstructor doesn't support @Qualifier on specific fields easily.
     public AuthFilter(JwtTokenProvider tokenProvider,
                       UserDetailsService userDetailsService,
                       @Qualifier("handlerExceptionResolver") HandlerExceptionResolver resolver) {
@@ -39,6 +38,7 @@ public class AuthFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
         try {
+            // Now fetches token from Cookie instead of just the Header
             String token = getJwtFromRequest(request);
 
             if (StringUtils.hasText(token) && tokenProvider.validateToken(token)) {
@@ -58,16 +58,30 @@ public class AuthFilter extends OncePerRequestFilter {
             filterChain.doFilter(request, response);
 
         } catch (Exception ex) {
-            // This sends the error to your @ControllerAdvice
             resolver.resolveException(request, response, null, ex);
         }
     }
 
+    /**
+     * Extracts the JWT from either the "accessToken" cookie or the Authorization header.
+     */
     private String getJwtFromRequest(HttpServletRequest request) {
+        // 1. Try to get the token from Cookies (Primary for Web)
+        Cookie[] cookies = request.getCookies();
+        if (cookies != null) {
+            for (Cookie cookie : cookies) {
+                if ("accessToken".equals(cookie.getName())) { // Must match your CookieService name
+                    return cookie.getValue();
+                }
+            }
+        }
+
+        // 2. Fallback: Try to get from Authorization Header (Useful for Postman testing)
         String bearerToken = request.getHeader("Authorization");
         if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
             return bearerToken.substring(7);
         }
+
         return null;
     }
 }

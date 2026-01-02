@@ -33,6 +33,7 @@ build/
 .vscode/
 
 application.properties
+docker-compose.yml
 application.yml
 application-*.properties
 application-*.yml

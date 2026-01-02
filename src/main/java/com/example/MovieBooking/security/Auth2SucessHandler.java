@@ -1,13 +1,11 @@
 package com.example.MovieBooking.security;
 
-import com.example.MovieBooking.dto.JwtAuthResponseDto;
 import com.example.MovieBooking.service.AuthService;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.context.annotation.Lazy; // Added for Lazy injection
-import org.springframework.http.MediaType;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
@@ -16,17 +14,15 @@ import org.springframework.security.web.authentication.AuthenticationSuccessHand
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.util.List;
 
 @Component
 public class Auth2SucessHandler implements AuthenticationSuccessHandler {
 
     private final AuthService authService;
-    private final ObjectMapper objectMapper;
 
-    // Use manual constructor with @Lazy to break the circular dependency
-    public Auth2SucessHandler(@Lazy AuthService authService, ObjectMapper objectMapper) {
+    public Auth2SucessHandler(@Lazy AuthService authService) {
         this.authService = authService;
-        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -41,23 +37,19 @@ public class Auth2SucessHandler implements AuthenticationSuccessHandler {
         // 2. Get the registration ID (e.g., "google")
         String registrationId = token.getAuthorizedClientRegistrationId();
 
-        // 3. Call your service to handle DB logic and token generation
-        ResponseEntity<JwtAuthResponseDto> loginResponse = authService.handleOAuth2LoginRequest(oAuth2User, registrationId);
+        // 3. Call service (Service handles DB check and generates Cookies)
+        ResponseEntity<String> loginResponse = authService.handleOAuth2LoginRequest(oAuth2User, registrationId);
 
-        // 4. Redirect to React instead of writing JSON
-        if (loginResponse.getBody() != null) {
-            JwtAuthResponseDto authData = loginResponse.getBody();
-
-            // Construct the URL for your React "GoogleCallback" component
-            String targetUrl = "http://localhost:5173/oauth2/callback?" +
-                    "token=" + authData.getAccessToken() +
-                    "&refreshToken=" + authData.getRefreshToken();
-
-            // Perform the redirect
-            response.sendRedirect(targetUrl);
-        } else {
-            // If login failed, send back to your login page with an error
-            response.sendRedirect("http://localhost:5173/login?error=auth_failed");
+        // 4. TRANSFER THE COOKIES from the ResponseEntity to the actual HttpServletResponse
+        List<String> cookies = loginResponse.getHeaders().get(HttpHeaders.SET_COOKIE);
+        if (cookies != null) {
+            for (String cookie : cookies) {
+                response.addHeader(HttpHeaders.SET_COOKIE, cookie);
+            }
         }
+
+        // 5. SECURE REDIRECT: Redirect to React without tokens in the URL
+        // React will now call a /me endpoint to verify the session using the cookies
+        response.sendRedirect("http://localhost:5173/oauth2/callback?status=success");
     }
 }

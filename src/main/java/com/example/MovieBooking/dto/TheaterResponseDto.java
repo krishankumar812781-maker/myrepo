@@ -8,6 +8,4 @@ public class TheaterResponseDto {
     private String name;
     private String address;
     private String city;
-    private Double latitude;  // The field from the API
-    private Double longitude; // The field from the API
 }
