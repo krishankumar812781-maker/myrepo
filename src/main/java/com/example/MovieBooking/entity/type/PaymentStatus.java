@@ -1,8 +1,8 @@
 package com.example.MovieBooking.entity.type;
 
-public enum BookingStatus {
+public enum PaymentStatus {
     PENDING,
-    CONFIRMED,
+    PAID,
     CANCELLED,
-    EXPIRED
+    REFUNDED
 }

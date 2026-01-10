@@ -32,9 +32,9 @@ public class ScreenController {
      * Gets all screens for a specific theater. (Public)
      * This is an alternative to the /api/theaters/{id}/screens endpoint.
      */
-    @GetMapping
+    @GetMapping("/theater/{theaterId}") // ⚡ Added a path segment for clarity
     public ResponseEntity<List<ScreenResponseDto>> getScreensByTheater(
-            @RequestParam Long theaterId) {
+            @PathVariable Long theaterId) { // ⚡ Changed to @PathVariable
 
         List<ScreenResponseDto> screens = screenService.getScreensByTheater(theaterId);
         return ResponseEntity.ok(screens);

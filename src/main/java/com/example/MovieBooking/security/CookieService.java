@@ -10,7 +10,7 @@ public class CookieService {
         return ResponseCookie.from("accessToken", token)
                 .httpOnly(true)
                 .secure(false) // Set to true in Production with HTTPS
-                .path("/")
+                .path("/") // har api call ma cookie request ma a jaye
                 .maxAge(3600) // 1 hour
                 .sameSite("Lax")
                 .build();

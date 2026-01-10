@@ -17,7 +17,7 @@ import java.util.List;
 @Getter
 @Setter
 @NoArgsConstructor
-@ToString(exclude = {"show"}) // Exclude relationships
+@ToString(exclude = {"show"})
 public class Movie {
 
     @Id
@@ -27,8 +27,9 @@ public class Movie {
     @Column(nullable = false)
     private String title;
 
-    @Column(length = 1000) // Give more space for description
-    private String description;
+    // ⚡ Changed from description to plot and used TEXT for unlimited length
+    @Column(columnDefinition = "TEXT")
+    private String plot;
 
     @Column(nullable = false)
     private String language;
@@ -37,10 +38,18 @@ public class Movie {
     private String genre;
 
     @Column(nullable = false)
-    private Integer duration; // Duration in minutes
+    private String duration; // Changed to String to match OMDb "148 min"
 
-    private String posterUrl; // S3 link
+    private String posterUrl;
+
+    // ⚡ New fields from OMDb
+    private String director;
+
+    @Column(length = 1000) // Actors lists can be long
+    private String actors;
+
+    private String rating; // Storing imdbRating (e.g., "8.8")
 
     @OneToMany(mappedBy = "movie", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<Show> show =new ArrayList<>();
+    private List<Show> show = new ArrayList<>();
 }

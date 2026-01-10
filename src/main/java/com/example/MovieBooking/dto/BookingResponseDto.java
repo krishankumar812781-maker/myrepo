@@ -15,12 +15,13 @@ public class BookingResponseDto {
     private Timestamp bookingTime;
     private BigDecimal totalAmount;
 
-    // Flattened details from the Show
     private String movieTitle;
     private String theaterName;
     private String screenName;
     private LocalDateTime showStartTime;
 
-    // Simple list of seat numbers
-    private List<String> bookedSeats=new ArrayList<>();
+    private List<String> bookedSeats = new ArrayList<>();
+
+    // ⚡ ADD THIS FOR STRIPE
+    private String clientSecret;
 }

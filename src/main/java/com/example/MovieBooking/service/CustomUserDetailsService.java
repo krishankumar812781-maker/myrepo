@@ -1,16 +1,14 @@
 package com.example.MovieBooking.service;
-
+import com.example.MovieBooking.ExceptionHandeling.OAuth2UserException;
 import com.example.MovieBooking.entity.User;
 import com.example.MovieBooking.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
-
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -20,6 +18,7 @@ public class CustomUserDetailsService implements UserDetailsService {
 
     private final UserRepository userRepository;
 
+    //UserDetails object is created by loading user data from the database
     @Override
     public UserDetails loadUserByUsername(String usernameOrEmail) throws UsernameNotFoundException {
 
@@ -28,6 +27,12 @@ public class CustomUserDetailsService implements UserDetailsService {
                 .orElseGet(() -> userRepository.findByEmail(usernameOrEmail)
                         .orElseThrow(() ->
                                 new UsernameNotFoundException("User not found with username or email: " + usernameOrEmail)));
+
+        // Check if the user is a Social-Only user
+        if (user.getPassword() == null || user.getPassword().isEmpty()) {
+            // Throw a custom exception that the controller/handler can catch
+            throw new OAuth2UserException("This account is linked with " + user.getAuthProvider() + ". Please login using Social Login.");
+        }
 
         // 2. Convert your Set<Role> into a Set<GrantedAuthority>
         Set<GrantedAuthority> authorities = user.getRoles().stream()

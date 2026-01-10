@@ -28,6 +28,21 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(errorDetails, HttpStatus.NOT_FOUND);
     }
 
+    @ExceptionHandler(OAuth2UserException.class)
+    public ResponseEntity<ErrorDetailsDto> handleOAuth2UserException(
+            OAuth2UserException exception,
+            WebRequest webRequest) {
+
+        ErrorDetailsDto errorDetails = new ErrorDetailsDto(
+                LocalDateTime.now(),
+                exception.getMessage(), // This will be "This account is linked with Google..."
+                webRequest.getDescription(false)
+        );
+
+        // Using UNAUTHORIZED (401) is best for login issues
+        return new ResponseEntity<>(errorDetails, HttpStatus.UNAUTHORIZED);
+    }
+
     // 2. Handle Security Exceptions (403 Forbidden)
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ErrorDetailsDto> handleAccessDeniedException(
@@ -63,6 +78,9 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorDetailsDto> handleGlobalException(
             Exception exception,
             WebRequest webRequest){
+        //ya abhi add kia hai
+        System.err.println("CRITICAL ENTRY ERROR: " + exception.getMessage());
+        exception.printStackTrace(); // This MUST show up in your console now
 
         ErrorDetailsDto errorDetails = new ErrorDetailsDto(
                 LocalDateTime.now(),

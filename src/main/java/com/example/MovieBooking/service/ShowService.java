@@ -9,223 +9,182 @@ import com.example.MovieBooking.entity.type.SeatStatus;
 import com.example.MovieBooking.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.modelmapper.ModelMapper;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class ShowService {
 
     private final ShowRepository showRepository;
-
     private final ScreenRepository screenRepository;
-
     private final MovieRepository movieRepository;
-
     private final SeatRepository seatRepository;
-
     private final ShowSeatRepository showSeatRepository;
-
-    private final KafkaTemplate<String, String> kafkaTemplate;
-
-    private final BookingRepository bookingRepository;
-
     private final ModelMapper modelMapper;
 
-    @Transactional(readOnly = true)
-    public List<ShowSeatDto> getSeatsForShow(Long showId) {
-        // ... (your existsById check) ...
-
-        List<ShowSeat> showSeats = showSeatRepository.findByShowId(showId);
-
-        // 3. Map to DTOs (The new way)
-        return showSeats.stream()
-                .map(showSeat -> modelMapper.map(showSeat, ShowSeatDto.class))
-                .toList();
-    }
-
-    @Transactional(readOnly = true)
-    public List<ShowResponseDto> getShowsByTheaterId(Long theaterId) {
-        // Step 1: Find all screens belonging to the given theater
-        List<Screen> screens=screenRepository.findByTheaterId(theaterId);
-
-        if (screens.isEmpty()) {
-            // Or throw a custom TheaterNotFoundException if theaterId doesn't exist at all
-            return new ArrayList<>(); // Return empty list if no screens or theater not found
-        }
-
-        // Step 2: For each screen, find all shows
-        List<Show> allShows = screens.stream()
-                .flatMap(screen -> showRepository.findByScreenId(screen.getId()).stream())
-                .toList();
-
-        // Step 3: Convert entities to DTOs and return
-        //here show is like i in loop it is to represent the single item from the list that is being processed right now
-        return allShows.stream()
-                .map(this::mapToShowResponseDto)
-                .toList();
-    }
-
+    /**
+     * Creates a new show and automatically generates the seating inventory (ShowSeats).
+     */
     @Transactional
     public ShowResponseDto createShow(ShowRequestDto showRequestDto) {
+        Movie movie = movieRepository.findById(showRequestDto.getMovieId())
+                .orElseThrow(() -> new RuntimeException("Movie not found"));
 
-            // --- 1. MANUAL MAPPING (DTO to Entity) ---
-            // We cannot use ModelMapper here. We must fetch the relations.
+        Screen screen = screenRepository.findById(showRequestDto.getScreenId())
+                .orElseThrow(() -> new RuntimeException("Screen not found"));
 
-            Movie movie = movieRepository.findById(showRequestDto.getMovieId())
-                    .orElseThrow(() -> new RuntimeException("Movie not found with id: " + showRequestDto.getMovieId()));
+        Show show = new Show();
+        show.setStartTime(showRequestDto.getStartTime());
+        show.setEndTime(showRequestDto.getEndTime());
+        show.setMovie(movie);
+        show.setScreen(screen);
 
-            Screen screen = screenRepository.findById(showRequestDto.getScreenId())
-                    .orElseThrow(() -> new RuntimeException("Screen not found with id: " + showRequestDto.getScreenId()));
+        Show savedShow = showRepository.save(show);
 
-            Show show = new Show();
-            show.setStartTime(showRequestDto.getStartTime());
-            show.setEndTime(showRequestDto.getEndTime());
-            show.setMovie(movie);
-            show.setScreen(screen);
+        // --- GENERATE SHOWSEAT INVENTORY ---
+        Map<String, BigDecimal> seatPriceConfig = showRequestDto.getSeatPrices();
+        List<Seat> templateSeats = seatRepository.findByScreenId(screen.getId());
 
-            // Save the Show first to get its generated ID
-            Show savedShow = showRepository.save(show);
+        if (templateSeats.isEmpty()) {
+            throw new RuntimeException("No base seats found for Screen ID: " + screen.getId());
+        }
 
-            // --- 2. GENERATE SHOWSEAT INVENTORY  ---
+        List<ShowSeat> showSeatsToSave = templateSeats.stream()
+                .map(seat -> {
+                    BigDecimal price = null;
+                    if (seatPriceConfig != null) {
+                        price = seatPriceConfig.entrySet().stream()
+                                .filter(e -> e.getKey().equalsIgnoreCase(seat.getSeatType()))
+                                .map(Map.Entry::getValue)
+                                .findFirst()
+                                .orElse(null);
+                    }
 
-            // Get the price map and template seats- and create ShowSeats
-            Map<String, BigDecimal> seatPriceConfig = showRequestDto.getSeatPrices();
-            List<Seat> templateSeats = seatRepository.findByScreenId(screen.getId());
+                    if (price == null) {
+                        price = (seatPriceConfig != null && seatPriceConfig.containsKey("REGULAR"))
+                                ? seatPriceConfig.get("REGULAR")
+                                : new BigDecimal("100.00");
+                    }
 
-            List<ShowSeat> showSeatsToSave = templateSeats.stream()
-                    .map(seat -> {
-                        //ye sab 'Seat' pa iterate ho raha hai and we are creating 'ShowSeat'
-                        //seat is like i
+                    ShowSeat showSeat = new ShowSeat();
+                    showSeat.setShow(savedShow);
+                    showSeat.setSeat(seat);
+                    showSeat.setStatus(SeatStatus.AVAILABLE);
+                    showSeat.setPrice(price);
+                    return showSeat;
+                })
+                .collect(Collectors.toList());
 
-                        BigDecimal price = seatPriceConfig.get(seat.getSeatType());
-                        if (price == null) {
-                            throw new RuntimeException("Price not configured for seat type: " + seat.getSeatType());
-                        }
-
-                        ShowSeat showSeat = new ShowSeat();
-                        showSeat.setShow(savedShow); // Link to the Show we just saved
-                        showSeat.setSeat(seat);
-                        showSeat.setStatus(SeatStatus.AVAILABLE); //enum set krne ke lia
-                        showSeat.setPrice(price);
-                        return showSeat;
-                    })
-                    .toList();
-
-            // Save all the new ShowSeats to the database in one batch
-            showSeatRepository.saveAll(showSeatsToSave);
-
-            // --- 3. MAPPING (Entity to DTO) ---
-            // We use ModelMapper for simple fields, then manually set the rest.
-
-           return mapToShowResponseDto(savedShow);
+        showSeatRepository.saveAll(showSeatsToSave);
+        return mapToShowResponseDto(savedShow);
     }
 
+    /**
+     * ⚡ FIXED: Retrieves all shows for Admin view without filtering.
+     */
 
     @Transactional(readOnly = true)
     public List<ShowResponseDto> getAllShows() {
-        return showRepository.findAll()
-                .stream()
+        List<Show> shows = showRepository.findAll();
+        return shows.stream()
                 .map(this::mapToShowResponseDto)
-                .toList();
+                .collect(Collectors.toList());
     }
 
-
+    /**
+     * Dynamic filtering for shows based on Movie, Theater, or Date.
+     */
     @Transactional(readOnly = true)
-    public List<ShowResponseDto> getShowsByMovieId(Long movieId) {
-        Movie movie = movieRepository.findById(movieId)
-                .orElseThrow(() -> new RuntimeException("Movie not found with id: " + movieId));
+    public List<ShowResponseDto> getFilteredShows(Long movieId, String city, Long theaterId, LocalDate date) {
+        LocalDateTime start = (date != null) ? date.atStartOfDay() : null;
+        LocalDateTime end = (date != null) ? date.atTime(LocalTime.MAX) : null;
 
-        List<Show> shows = showRepository.findShowByMovieId(movieId);
+        List<Show> shows = showRepository.findFilteredShows(movieId, city, theaterId, start, end);
 
         return shows.stream()
                 .map(this::mapToShowResponseDto)
-                .toList();
+                .collect(Collectors.toList());
+    }
 
+    @Transactional(readOnly = true)
+    public ShowResponseDto getShowById(Long showId) {
+        Show show = showRepository.findById(showId)
+                .orElseThrow(() -> new RuntimeException("Show not found"));
+        return mapToShowResponseDto(show);
+    }
+
+    @Transactional(readOnly = true)
+    public List<ShowSeatDto> getSeatsForShow(Long showId) {
+        List<ShowSeat> showSeats = showSeatRepository.findByShowId(showId);
+        return showSeats.stream()
+                .map(showSeat -> {
+                    ShowSeatDto dto = modelMapper.map(showSeat, ShowSeatDto.class);
+                    dto.setId(showSeat.getId());
+                    dto.setSeatNumber(showSeat.getSeat().getSeatNumber());
+                    dto.setSeatType(showSeat.getSeat().getSeatType());
+                    dto.setStatus(showSeat.getStatus().toString());
+                    dto.setPrice(showSeat.getPrice());
+                    return dto;
+                })
+                .collect(Collectors.toList());
     }
 
     @Transactional
     public ShowResponseDto updateShow(Long showId, ShowUpdateRequestDto updateDto) {
-        // 1. Find the Show to update
         Show show = showRepository.findById(showId)
-                .orElseThrow(() -> new RuntimeException("Show not found with id: " + showId));
+                .orElseThrow(() -> new RuntimeException("Show not found"));
 
-        // 2. Update the simple fields
         show.setStartTime(updateDto.getStartTime());
         show.setEndTime(updateDto.getEndTime());
 
-        // 3. Handle the optional price update
-        Map<String, BigDecimal> priceConfig = updateDto.getSeatPrices();
-
-        // Only update prices if the admin provided a price map
-        if (priceConfig != null && !priceConfig.isEmpty()) {
-
-            // Find all seats for this show
+        if (updateDto.getSeatPrices() != null && !updateDto.getSeatPrices().isEmpty()) {
             List<ShowSeat> showSeats = showSeatRepository.findByShowId(showId);
-
-            // Use a stream to update only AVAILABLE seats
             showSeats.stream()
-                    .filter(seat -> "AVAILABLE".equals(seat.getStatus()))
-                    .forEach(seat -> {
-                        // Get the seat's type (e.g., "PREMIUM")
-                        String seatType = seat.getSeat().getSeatType();
-
-                        // Find the new price for that type from the DTO
-                        BigDecimal newPrice = priceConfig.get(seatType);
-
-                        // If a new price is provided for this type, update it
-                        if (newPrice != null) {
-                            seat.setPrice(newPrice);
-                        }
+                    .filter(ss -> ss.getStatus() == SeatStatus.AVAILABLE)
+                    .forEach(ss -> {
+                        BigDecimal newPrice = updateDto.getSeatPrices().get(ss.getSeat().getSeatType());
+                        if (newPrice != null) ss.setPrice(newPrice);
                     });
-
-            // Because we are in a @Transactional method,
-            // JPA will automatically save the changes to the ShowSeat entities.
         }
 
-        // 4. Save the updated Show entity
         Show savedShow = showRepository.save(show);
-
-        // --- PUBLISH KAFKA EVENT ---
-        // Create a message to send. Using JSON as a string is a good practice.
-        String message = String.format(
-                "{\"showId\": %d, \"newStartTime\": \"%s\"}",
-                savedShow.getId(),
-                savedShow.getStartTime().toString()
-        );
-        kafkaTemplate.send("show-updated-topic", message);
-
-        // 5. Map to a response DTO and return
-        return mapToShowResponseDto(savedShow); // Use your existing helper method
+        return mapToShowResponseDto(savedShow);
     }
 
     @Transactional
     public void deleteShow(Long showId) {
-
-        if (!showRepository.existsById(showId)) {
-            throw new RuntimeException("Show not found with id: " + showId);
+        if (showSeatRepository.existsByShowIdAndStatus(showId, SeatStatus.BOOKED)) {
+            throw new RuntimeException("Cannot delete show with active bookings.");
         }
-
-        // CRITICAL: Check for any "BOOKED" seats for this show.
-        // We use "BOOKED" as an example status.
-        boolean hasBookedSeats = showSeatRepository.existsByShowIdAndStatus(showId, "BOOKED");
-
-        if (hasBookedSeats) {
-            throw new RuntimeException("Cannot delete show: It has active bookings.");
-        }
-        // deleting the Show will cascade and automatically delete all of its associated ShowSeat inventory.
         showRepository.deleteById(showId);
     }
 
-    /**
-     * Helper method to map a Show entity to a ShowResponseDto.
-     */
+    @Transactional(readOnly = true)
+    public List<ShowResponseDto> getShowsByMovieId(Long movieId) {
+        return showRepository.findByMovieId(movieId).stream()
+                .map(this::mapToShowResponseDto)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<ShowResponseDto> getShowsByTheaterId(Long theaterId) {
+        List<Screen> screens = screenRepository.findByTheaterId(theaterId);
+        return screens.stream()
+                .flatMap(screen -> showRepository.findByScreenId(screen.getId()).stream())
+                .map(this::mapToShowResponseDto)
+                .collect(Collectors.toList());
+    }
+
     private ShowResponseDto mapToShowResponseDto(Show show) {
         ShowResponseDto dto = modelMapper.map(show, ShowResponseDto.class);
         dto.setMovieTitle(show.getMovie().getTitle());
@@ -234,7 +193,4 @@ public class ShowService {
         dto.setTheaterName(show.getScreen().getTheater().getName());
         return dto;
     }
-
-    }
-
-
+}

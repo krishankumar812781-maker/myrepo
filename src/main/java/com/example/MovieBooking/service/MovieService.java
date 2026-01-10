@@ -1,9 +1,10 @@
 package com.example.MovieBooking.service;
 
-import com.example.MovieBooking.dto.RequestDto.MovieDto;
 import com.example.MovieBooking.dto.OmdbDetailDto;
 import com.example.MovieBooking.dto.OmdbSearchResponse;
 import com.example.MovieBooking.dto.OmdbSearchResult;
+import com.example.MovieBooking.dto.RequestDto.MovieRequestDto;
+import com.example.MovieBooking.dto.MovieResponseDto;
 import com.example.MovieBooking.entity.Movie;
 import com.example.MovieBooking.repository.MovieRepository;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +15,7 @@ import org.springframework.web.client.RestTemplate;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -33,7 +35,7 @@ public class MovieService {
                 ? response.getSearchResults() : List.of();
     }
 
-    public MovieDto importMovieByImdbId(String imdbId) {
+    public MovieResponseDto importMovieByImdbId(String imdbId) {
         String url = "http://www.omdbapi.com/?apikey=" + apiKey + "&i=" + imdbId + "&plot=full";
         OmdbDetailDto detail = restTemplate.getForObject(url, OmdbDetailDto.class);
 
@@ -42,69 +44,88 @@ public class MovieService {
         }
 
         Movie movie = new Movie();
-        // ⚡ FIXED: Removed movie.setId(detail.getId()).
-        // Database will now auto-generate the numeric ID.
-
         movie.setTitle(detail.getTitle());
-        movie.setDescription(detail.getPlot());
+        movie.setPlot(detail.getPlot()); // Rich plot text
+        movie.setRating(detail.getImdbRating());
         movie.setGenre(detail.getGenre());
         movie.setLanguage(detail.getLanguage());
         movie.setPosterUrl(detail.getPoster());
-
-        try {
-            String runtimeStr = detail.getRuntime().split(" ")[0];
-            movie.setDuration(Integer.parseInt(runtimeStr));
-        } catch (Exception e) {
-            movie.setDuration(0);
-        }
+        movie.setDirector(detail.getDirector());
+        movie.setActors(detail.getActors());
+        movie.setDuration(detail.getRuntime()); // Storing as String "148 min"
 
         Movie savedMovie = movieRepository.save(movie);
-        // modelMapper will now include the generated ID in the returned DTO.
-        return modelMapper.map(savedMovie, MovieDto.class);
+        return convertToDto(savedMovie);
     }
 
-    public MovieDto addMovie(MovieDto movieDto) {
-        Movie movie = modelMapper.map(movieDto, Movie.class);
+    public MovieResponseDto addMovie(MovieRequestDto movieRequestDto) {
+        Movie movie = modelMapper.map(movieRequestDto, Movie.class);
         Movie savedMovie = movieRepository.save(movie);
-        return modelMapper.map(savedMovie, MovieDto.class);
+        return convertToDto(savedMovie);
     }
 
-    public List<MovieDto> getAllMovies() {
-        List<Movie> movies = movieRepository.findAll();
-        return movies.stream().map(m -> modelMapper.map(m, MovieDto.class)).toList();
+    public List<MovieResponseDto> getAllMovies() {
+        return movieRepository.findAll().stream()
+                .map(this::convertToDto)
+                .toList();
     }
 
-    public List<MovieDto> getMoviesByGenre(String genre) {
-        Optional<List<Movie>> listOfMovies = movieRepository.findByGenre(genre);
-        if (listOfMovies.isEmpty()) throw new RuntimeException("No movies found for genre: " + genre);
-        return listOfMovies.get().stream().map(m -> modelMapper.map(m, MovieDto.class)).toList();
+    public List<MovieResponseDto> getMoviesByGenre(String genre) {
+        List<Movie> movies = movieRepository.findByGenre(genre)
+                .orElseThrow(() -> new RuntimeException("No movies found for genre: " + genre));
+        return movies.stream().map(this::convertToDto).toList();
     }
 
-    public List<MovieDto> getMoviesByLanguage(String language) {
-        Optional<List<Movie>> listOfMovies = movieRepository.findByLanguage(language);
-        if (listOfMovies.isEmpty()) throw new RuntimeException("No movies found for language: " + language);
-        return listOfMovies.get().stream().map(m -> modelMapper.map(m, MovieDto.class)).toList();
+    public List<MovieResponseDto> getMoviesByLanguage(String language) {
+        List<Movie> movies = movieRepository.findByLanguage(language)
+                .orElseThrow(() -> new RuntimeException("No movies found for language: " + language));
+        return movies.stream().map(this::convertToDto).toList();
     }
 
-    public MovieDto getMoviesByTitle(String title) {
-        Optional<Movie> movie = movieRepository.findByTitle(title);
-        if (movie.isEmpty()) throw new RuntimeException("No movies found with title: " + title);
-        return modelMapper.map(movie.get(), MovieDto.class);
+    public List<MovieResponseDto> searchMovies(String title) {
+        return movieRepository.findByTitleContainingIgnoreCase(title)
+                .stream()
+                .map(this::convertToDto)
+                .collect(Collectors.toList());
     }
 
-    public MovieDto updateMovie(Long id, MovieDto movieDto) {
-        Movie movie = movieRepository.findById(id).orElseThrow(() -> new RuntimeException("Movie not found"));
-        modelMapper.map(movieDto, movie);
+    public MovieResponseDto getMoviesByTitle(String title) {
+        Movie movie = movieRepository.findByTitle(title)
+                .orElseThrow(() -> new RuntimeException("No movies found with title: " + title));
+        return convertToDto(movie);
+    }
+
+    public MovieResponseDto updateMovie(Long id, MovieRequestDto movieRequestDto) {
+        Movie movie = movieRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Movie not found"));
+        modelMapper.map(movieRequestDto, movie);
         Movie updated = movieRepository.save(movie);
-        return modelMapper.map(updated, MovieDto.class);
+        return convertToDto(updated);
     }
 
     public void deleteMovie(Long id) {
         movieRepository.deleteById(id);
     }
 
-    public Movie getMovieById(Long id) {
-        return movieRepository.findById(id)
+    public MovieResponseDto getMovieById(Long id) {
+        Movie movie = movieRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Movie not found with id: " + id));
+        return convertToDto(movie);
+    }
+
+    // ⚡ CONVERTER: Maps the Entity to the Response DTO with all new fields
+    private MovieResponseDto convertToDto(Movie movie) {
+        MovieResponseDto dto = new MovieResponseDto();
+        dto.setId(movie.getId());
+        dto.setTitle(movie.getTitle());
+        dto.setPlot(movie.getPlot());
+        dto.setRating(movie.getRating());
+        dto.setLanguage(movie.getLanguage());
+        dto.setGenre(movie.getGenre());
+        dto.setDuration(movie.getDuration());
+        dto.setPosterUrl(movie.getPosterUrl());
+        dto.setDirector(movie.getDirector());
+        dto.setActors(movie.getActors());
+        return dto;
     }
 }

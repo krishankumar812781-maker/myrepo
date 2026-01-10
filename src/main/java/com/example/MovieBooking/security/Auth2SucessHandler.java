@@ -1,5 +1,4 @@
 package com.example.MovieBooking.security;
-
 import com.example.MovieBooking.service.AuthService;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -30,17 +29,16 @@ public class Auth2SucessHandler implements AuthenticationSuccessHandler {
                                         HttpServletResponse response,
                                         Authentication authentication) throws IOException, ServletException {
 
-        // 1. Cast the authentication to get OAuth2 details
+        // 1. Cast the authentication to get OAuth2 token and user details
         OAuth2AuthenticationToken token = (OAuth2AuthenticationToken) authentication;
         OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
 
-        // 2. Get the registration ID (e.g., "google")
+        // 2. tells which OAuth2 provider was used it is a String value(Google, Facebook, etc.)
         String registrationId = token.getAuthorizedClientRegistrationId();
 
         // 3. Call service (Service handles DB check and generates Cookies)
         ResponseEntity<String> loginResponse = authService.handleOAuth2LoginRequest(oAuth2User, registrationId);
-
-        // 4. TRANSFER THE COOKIES from the ResponseEntity to the actual HttpServletResponse
+        // now TRANSFER THE COOKIES from the ResponseEntity to the actual HttpServletResponse
         List<String> cookies = loginResponse.getHeaders().get(HttpHeaders.SET_COOKIE);
         if (cookies != null) {
             for (String cookie : cookies) {
@@ -49,7 +47,6 @@ public class Auth2SucessHandler implements AuthenticationSuccessHandler {
         }
 
         // 5. SECURE REDIRECT: Redirect to React without tokens in the URL
-        // React will now call a /me endpoint to verify the session using the cookies
         response.sendRedirect("http://localhost:5173/oauth2/callback?status=success");
     }
 }

@@ -1,7 +1,7 @@
 package com.example.MovieBooking.config;
 
 import com.example.MovieBooking.security.Auth2SucessHandler;
-import com.example.MovieBooking.security.AuthFilter;
+import com.example.MovieBooking.security.JwtAuthFilter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
@@ -19,7 +19,6 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.servlet.HandlerExceptionResolver;
-
 import java.util.Arrays;
 import java.util.List;
 
@@ -30,15 +29,13 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-
-    private final AuthFilter authenticationFilter;
+    private final JwtAuthFilter authenticationFilter;
     private final Auth2SucessHandler auth2SucessHandler;
     private final HandlerExceptionResolver handlerExceptionResolver;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
-                // 1. ADDED CORS SUPPORT
                 .cors(Customizer.withDefaults())
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session
@@ -49,6 +46,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/movies/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/theaters/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/shows/**").permitAll()
+                        // Ensure all Pre-flight (OPTIONS) requests are allowed
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(authenticationFilter, UsernamePasswordAuthenticationFilter.class)
@@ -56,17 +55,13 @@ public class SecurityConfig {
                         .successHandler(auth2SucessHandler)
                         .failureHandler((request, response, exception) -> {
                             log.error("OAuth2 Login Failed: {}", exception.getMessage());
-                            response.sendError(401, "Authentication Failed: " + exception.getMessage());
-                            // Delegate to the global exception handler
                             handlerExceptionResolver.resolveException(request, response, null, exception);
                         })
                 )
                 .exceptionHandling(ex -> ex
-                        // For 401 Unauthorized errors
                         .authenticationEntryPoint((request, response, authException) -> {
                             handlerExceptionResolver.resolveException(request, response, null, authException);
                         })
-                        // Adding AccessDeniedHandler as well for 403 Forbidden errors
                         .accessDeniedHandler((request, response, accessDeniedException) -> {
                             handlerExceptionResolver.resolveException(request, response, null, accessDeniedException);
                         })
@@ -74,18 +69,20 @@ public class SecurityConfig {
                 .build();
     }
 
-    // 2. ADDED CORS CONFIGURATION BEAN
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration configuration = new CorsConfiguration();
-        // Allow your React local dev server
-        configuration.setAllowedOrigins(List.of("http://localhost:5173"));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-        configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "Accept"));
-        configuration.setAllowCredentials(true);
+        CorsConfiguration config = new CorsConfiguration();
+
+        config.setAllowedOrigins(List.of("http://localhost:5173"));
+        config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
+        config.setAllowedHeaders(List.of("*"));
+        // allow the browser to see the "Set-Cookie" header
+        config.setExposedHeaders(List.of("Set-Cookie"));
+        config.setAllowCredentials(true);
+        config.setMaxAge(3600L); // Cache pre-flight for 1 hour
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", configuration);
+        source.registerCorsConfiguration("/**", config);
         return source;
     }
 }
